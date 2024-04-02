@@ -3,19 +3,18 @@
   helpers,
   pkgs,
 }: let
-  pkgsDoc =
-    import (pkgs.applyPatches {
-      name = "nixpkgs-nixvim-doc";
-      src = pkgs.path;
-      patches = [
-        ./either_recursive.patch
-      ];
-    }) {
-      inherit (pkgs) system;
-      config.allowUnfree = true;
-    };
-
-  inherit (pkgsDoc) lib;
+  #pkgsDoc =
+  #  import (pkgs.applyPatches {
+  #    name = "nixpkgs-nixvim-doc";
+  #    src = pkgs.path;
+  #    patches = [
+  #      ./either_recursive.patch
+  #    ];
+  #  }) {
+  #    inherit (pkgs) system;
+  #    config.allowUnfree = true;
+  #  };
+  inherit (pkgs) lib;
 
   nixvimPath = toString ./..;
 
@@ -68,7 +67,7 @@
         };
       })
     ]
-    ++ (rawModules pkgsDoc);
+    ++ (rawModules pkgs);
 
   hmOptions =
     builtins.removeAttrs
@@ -82,7 +81,7 @@
 in
   rec {
     options-json =
-      (pkgsDoc.nixosOptionsDoc
+      (pkgs.nixosOptionsDoc
         {
           inherit
             (lib.evalModules {
@@ -95,12 +94,12 @@ in
           warningsAreErrors = false;
         })
       .optionsJSON;
-    man-docs = pkgsDoc.callPackage ./man {inherit options-json;};
+    man-docs = pkgs.callPackage ./man {inherit options-json;};
   }
   # Do not check if documentation builds fine on darwin as it fails:
   # > sandbox-exec: pattern serialization length 69298 exceeds maximum (65535)
-  // lib.optionalAttrs (!pkgsDoc.stdenv.isDarwin) {
-    docs = pkgsDoc.callPackage ./mdbook {
+  // lib.optionalAttrs (!pkgs.stdenv.isDarwin) {
+    docs = pkgs.callPackage ./mdbook {
       inherit transformOptions;
       modules = topLevelModules;
       inherit helpers hmOptions;

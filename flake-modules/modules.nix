@@ -1,7 +1,11 @@
-{modules, ...}: {
+{
+  modules,
+  inputs,
+  ...
+}: {
   _module.args = {
     modules = pkgs: let
-      nixpkgsMaintainersList = pkgs.path + "/nixos/modules/misc/meta.nix";
+      nixpkgsMaintainersList = inputs.nixpkgs + "/nixos/modules/misc/meta.nix";
 
       nixvimExtraArgsModule = rec {
         _file = ./flake.nix;
