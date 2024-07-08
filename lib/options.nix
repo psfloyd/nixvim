@@ -368,4 +368,89 @@ rec {
         else
           example;
     };
+
+  mkLazySettingsOption =
+    # arguments to be passed to lazy.nvim, view plugins/pluginmanagers/lazy.nix
+    { name, luaName }:
+    with nixvimTypes;
+    let
+      default = {
+        useLazyNvim = false;
+        lazy = false;
+        enabled = "`true`";
+        cond = "`true`";
+        dependencies = null;
+        init = null;
+        config = null;
+        event = null;
+        cmd = null;
+        ft = null;
+        keys = null;
+        module = null;
+        priority = null;
+        optional = false;
+      };
+      lazyPluginSubmodule = submodule {
+        options = {
+          useLazyNvim = defaultNullOpts.mkBool default.useLazyNvim ''
+            Manage ${name} with lazy.nvim
+          '';
+
+          lazy = defaultNullOpts.mkBool default.lazy ''
+            When true, ${name} will only be loaded when needed.
+            Lazy-loaded plugins are automatically loaded when their Lua modules are required,
+            or when one of the lazy-loading handlers triggers
+          '';
+
+          enabled = defaultNullOpts.mkStrLuaFnOr types.bool default.enabled ''
+            When false then ${name} will not be included in the spec. (accepts fun():boolean)
+          '';
+
+          cond = defaultNullOpts.mkStrLuaFnOr types.bool default.cond ''
+            When false, or if the function returns false,
+            then ${name} will not be loaded. Useful to disable some plugins in vscode,
+            or firenvim for example. (accepts fun(LazyPlugin):boolean)
+          '';
+
+          dependencies = mkNullOrOption (eitherRecursive str lazyListOfPlugins) "Plugin dependencies";
+
+          init = mkNullOrLuaFn "init functions are always executed during startup";
+
+          config = mkNullOrStrLuaFnOr (types.enum [ true ]) ''
+            config is executed when ${name} loads.
+            The default implementation will automatically run require(${luaName}).setup(opts).
+          '';
+
+          event = mkNullOrOption (maybeRaw (either str (listOf str))) "Lazy-load on event. Events can be specified as BufEnter or with a pattern like BufEnter *.lua";
+
+          cmd = mkNullOrOption (maybeRaw (either str (listOf str))) "Lazy-load on command";
+
+          ft = mkNullOrOption (maybeRaw (either str (listOf str))) "Lazy-load on filetype";
+
+          keys = mkNullOrOption (maybeRaw (either str (listOf str))) "Lazy-load on key mapping";
+
+          module = mkNullOrOption (enum [ false ]) ''
+            Do not automatically load this Lua module when it's required somewhere
+          '';
+
+          priority = mkNullOrOption number ''
+            Only useful for start plugins (lazy=false) to force loading certain plugins first.
+            Default priority is 50. It's recommended to set this to a high number for colorschemes.
+          '';
+
+          optional = defaultNullOpts.mkBool default.optional ''
+            When a spec is tagged optional, it will only be included in the final spec,
+            when the same plugin has been specified at least once somewhere else without optional.
+            This is mainly useful for Neovim distros, to allow setting options on plugins that may/may not be part
+            of the user's plugins
+          '';
+
+        };
+      };
+      lazyListOfPlugins = types.listOf (either package lazyPluginSubmodule);
+    in
+    mkOption {
+      type = lazyPluginSubmodule;
+      inherit default;
+    };
 }
