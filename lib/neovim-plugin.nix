@@ -48,6 +48,7 @@ with lib;
       extraPackages ? [ ],
       callSetup ? true,
       installPackage ? true,
+      hasLazySettings ? true,
     }:
     let
       namespace = if isColorscheme then "colorschemes" else "plugins";
@@ -99,6 +100,9 @@ with lib;
             example = settingsExample;
           };
         }
+        // optionalAttrs hasLazySettings {
+          lazySettings = nixvimOptions.mkLazySettingsOption { inherit name luaName; };
+        }
         // extraOptions;
 
       config =
@@ -111,9 +115,47 @@ with lib;
             extraPlugins = (optional installPackage cfg.package) ++ extraPlugins;
             inherit extraPackages;
 
-            ${extraConfigNamespace} = optionalString callSetup ''
+            ${extraConfigNamespace} = optionalString (callSetup && !cfg.lazySettings.useLazyNvim) ''
               require('${luaName}')${setup}(${optionalString (cfg ? settings) (toLuaObject cfg.settings)})
             '';
+
+            assertions = [
+              {
+                assertion = !(cfg.lazySettings.useLazyNvim && !config.plugins.lazy.enable);
+                message = ''
+                  Nixvim (${namespace}.${name}): You have to set `plugins.lazy.enable = true` for `${namespace}.${name}.lazySettings.useLazyNvim = true` to work.
+                '';
+              }
+            ];
+            plugins.lazy = mkIf cfg.lazySettings.useLazyNvim {
+              enable = mkDefault true;
+              plugins = [
+                {
+                  # dir is automatic
+                  pkg = cfg.package;
+                  inherit name;
+                  main = luaName;
+                  opts = mkIf (cfg ? settings) cfg.settings;
+                  # dev is not used
+
+                  inherit (cfg.lazySettings)
+                    lazy
+                    enabled
+                    cond
+                    dependencies
+                    init
+                    config
+                    event
+                    cmd
+                    ft
+                    module
+                    priority
+                    optional
+                    ;
+
+                }
+              ];
+            };
           }
           (optionalAttrs (isColorscheme && (colorscheme != null)) { colorscheme = mkDefault colorscheme; })
           (extraConfig cfg)
