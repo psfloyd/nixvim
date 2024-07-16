@@ -48,9 +48,13 @@ with lib;
       extraPackages ? [ ],
       callSetup ? true,
       installPackage ? true,
+      # lazyLoad
+      allowLazyLoad ? true,
+      lazyLoad ? { },
     }:
     let
       namespace = if isColorscheme then "colorschemes" else "plugins";
+      cfg = config.${namespace}.${name};
     in
     {
       meta = {
@@ -99,21 +103,47 @@ with lib;
             example = settingsExample;
           };
         }
+        // optionalAttrs allowLazyLoad {
+          lazyLoad = nixvimOptions.mkLazyLoadOption {
+            inherit originalName cfg;
+            optionsForPlugin = true;
+            lazyLoad =
+              {
+                after = optionalString callSetup ''
+                  require('${luaName}')${setup}(${optionalString (cfg ? settings) (toLuaObject cfg.settings)})
+                '';
+              }
+              // (optionalAttrs (isColorscheme && colorscheme != null) { colorscheme = [ colorscheme ]; })
+              // lazyLoad;
+          };
+        }
         // extraOptions;
 
       config =
         let
-          cfg = config.${namespace}.${name};
           extraConfigNamespace = if isColorscheme then "extraConfigLuaPre" else "extraConfigLua";
+          lazyLoaded = cfg.lazyLoad.enable or false;
         in
         mkIf cfg.enable (mkMerge [
           {
             extraPlugins = (optional installPackage cfg.package) ++ extraPlugins;
             inherit extraPackages;
 
-            ${extraConfigNamespace} = optionalString callSetup ''
+            ${extraConfigNamespace} = optionalString (callSetup && !lazyLoaded) ''
               require('${luaName}')${setup}(${optionalString (cfg ? settings) (toLuaObject cfg.settings)})
             '';
+
+            plugins.lz-n.plugins = mkIf lazyLoaded [ cfg.lazyLoad ];
+            assertions = [
+              {
+                assertion = config.plugins.lz-n.enable || !lazyLoaded;
+                # TODO: replace with global option after adding backend
+                message = ''
+                  Nixvim (${namespace}.${name}): You have to enable `plugins.lz-n` for `${namespace}.${name}.lazyLoad` to work.
+                '';
+              }
+            ];
+
           }
           (optionalAttrs (isColorscheme && (colorscheme != null)) { colorscheme = mkDefault colorscheme; })
           (extraConfig cfg)
